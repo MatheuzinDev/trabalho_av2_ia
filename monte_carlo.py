@@ -7,6 +7,7 @@ import numpy as np
 from dados import create_train_test_split, normalize_train_test
 from metricas import calculate_validation_metrics, summarize_metric_values
 from modelos.adaline import Adaline
+from modelos.mlp import MultilayerPerceptron
 from modelos.perceptron import SimplePerceptron
 
 
@@ -104,6 +105,11 @@ def _run_single_round(args):
         adaline_max_epochs,
         adaline_learning_rate,
         adaline_precision,
+        include_mlp,
+        mlp_topology,
+        mlp_max_epochs,
+        mlp_learning_rate,
+        mlp_precision,
     ) = args
 
     train_matrix, test_matrix = create_train_test_split(matrix)
@@ -124,10 +130,26 @@ def _run_single_round(args):
     adaline.progress_prefix = f"[Rodada {round_index}] "
     adaline.fit(adaline_max_epochs, adaline_learning_rate, adaline_precision)
 
-    return {
+    round_result = {
         "perceptron": _evaluate_model(round_index, test_matrix, perceptron),
         "adaline": _evaluate_model(round_index, test_matrix, adaline),
     }
+
+    if include_mlp:
+        X_train_mlp = train_matrix[:, 1:3].T
+        Y_train_mlp = train_matrix[:, -1].reshape(1, -1)
+        mlp = MultilayerPerceptron(
+            mlp_topology,
+            X_train_mlp,
+            Y_train_mlp,
+            mlp_learning_rate,
+            mlp_max_epochs,
+            mlp_precision,
+        )
+        mlp.fit()
+        round_result["mlp"] = _evaluate_model(round_index, test_matrix, mlp)
+
+    return round_result
 
 
 def _evaluate_model(round_index, test_matrix, model):
@@ -175,6 +197,11 @@ def run_monte_carlo_validation(
     adaline_max_epochs,
     adaline_learning_rate,
     adaline_precision,
+    include_mlp,
+    mlp_topology,
+    mlp_max_epochs,
+    mlp_learning_rate,
+    mlp_precision,
     parallel,
     max_workers,
 ):
@@ -190,6 +217,11 @@ def run_monte_carlo_validation(
             adaline_max_epochs,
             adaline_learning_rate,
             adaline_precision,
+            include_mlp,
+            mlp_topology,
+            mlp_max_epochs,
+            mlp_learning_rate,
+            mlp_precision,
         )
         for round_index in range(1, rounds + 1)
     ]

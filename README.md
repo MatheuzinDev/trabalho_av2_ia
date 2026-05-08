@@ -24,28 +24,38 @@ resultados/
 ├── fronteiras/
 │   ├── dados_iniciais.png
 │   ├── perceptron/
-│   └── adaline/
+│   ├── adaline/
+│   └── mlp/
+├── mlp/
+│   └── topologias/
 └── monte_carlo/
-    └── comparacao_perceptron_adaline/
+    └── comparacao_modelos/
         ├── resumo_*.csv
         └── casos_extremos/
 ```
 
 ### Fronteiras
 
-`resultados/fronteiras/` guarda os graficos das fronteiras lineares encontradas pelos modelos.
+`resultados/fronteiras/` guarda os graficos das fronteiras encontradas pelos modelos.
 
 - `dados_iniciais.png`: mostra o grafico de espalhamento original do conjunto, sem fronteira de decisao.
 - `perceptron/fronteira_linear.png`: mostra a reta gerada pelo Perceptron Simples.
 - `adaline/fronteira_linear.png`: mostra a reta gerada pelo ADALINE.
+- `mlp/fronteira_decisao.png`: mostra a regiao de decisao nao linear gerada pela MLP.
 
 Essas imagens servem para visualizar a distribuicao inicial dos dados e como cada modelo tenta separar as duas classes do conjunto `spiral_d.csv`.
 
+### Topologias Da MLP
+
+`resultados/mlp/topologias/` guarda o estudo de topologias da MLP quando `run_mlp_topology_study` esta ativado no `main.py`.
+
+Os casos configurados sao `subdimensionado`, `referencia` e `superdimensionado`. Cada caso gera matriz de confusao, curva de aprendizado e fronteira de decisao.
+
 ### Monte Carlo
 
-`resultados/monte_carlo/comparacao_perceptron_adaline/` guarda a comparacao estatistica entre Perceptron Simples e ADALINE.
+`resultados/monte_carlo/comparacao_modelos/` guarda a comparacao estatistica entre os modelos ativados no Monte Carlo.
 
-A validacao usa `500` rodadas. Em cada rodada, os dados sao embaralhados e divididos em `80%` para treino e `20%` para teste.
+A validacao usa `500` rodadas. Em cada rodada, os dados sao embaralhados e divididos em `80%` para treino e `20%` para teste. Por padrao, a MLP fica fora do Monte Carlo para evitar execucoes longas; para inclui-la, ative `include_mlp_in_monte_carlo` no `main.py`.
 
 ### Tabelas Resumo
 
@@ -75,4 +85,4 @@ Cada pasta possui:
 - `matriz_confusao.png`: mostra os acertos e erros da rodada selecionada.
 - `curva_aprendizado.png`: mostra a evolucao do treinamento.
 
-No Perceptron, a curva representa os erros por epoca. No ADALINE, a curva representa o EQM por epoca.
+No Perceptron, a curva representa os erros por epoca. No ADALINE e na MLP, a curva representa o EQM por epoca.

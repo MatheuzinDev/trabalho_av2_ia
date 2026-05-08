@@ -9,8 +9,9 @@ from matplotlib.patches import Rectangle
 
 from dados import create_train_test_split, load_spiral_matrix, normalize_train_test
 from modelos.adaline import Adaline
+from modelos.mlp import MultilayerPerceptron
 from modelos.perceptron import SimplePerceptron
-from monte_carlo import run_monte_carlo_validation
+from monte_carlo import MonteCarloTester, run_monte_carlo_validation
 
 
 def load_spiral_data(file_path):
@@ -37,7 +38,7 @@ def plot_initial_scatter(matrix, ax):
     ax.scatter(
         matrix[positive_class, 0],
         matrix[positive_class, 1],
-        c="tab:orange",
+        c="tab:red",
         edgecolor="k",
         label="Classe +1",
         alpha=0.8,
@@ -76,6 +77,47 @@ def train_adaline(train_matrix, max_epochs, learning_rate, precision):
     return model
 
 
+def train_mlp(train_matrix, topology, max_epochs, learning_rate, precision):
+    X_train = train_matrix[:, 1:3].T
+    Y_train = train_matrix[:, -1].reshape(1, -1)
+
+    model = MultilayerPerceptron(
+        topology,
+        X_train,
+        Y_train,
+        learning_rate,
+        max_epochs,
+        precision,
+    )
+    model.fit()
+    return model
+
+
+def plot_mlp_decision_boundary(ax, mlp, normalized_matrix, grid_size=250):
+    x_min = normalized_matrix[:, 0].min()
+    x_max = normalized_matrix[:, 0].max()
+    y_min = normalized_matrix[:, 1].min()
+    y_max = normalized_matrix[:, 1].max()
+    margin = 0.05
+
+    xx, yy = np.meshgrid(
+        np.linspace(x_min - margin, x_max + margin, grid_size),
+        np.linspace(y_min - margin, y_max + margin, grid_size),
+    )
+    grid_points = np.c_[xx.ravel(), yy.ravel()]
+    predictions = mlp.predict_batch(grid_points).reshape(xx.shape)
+
+    ax.contourf(
+        xx,
+        yy,
+        predictions,
+        levels=[-1, 0, 1],
+        colors=["tab:blue", "tab:red"],
+        alpha=0.18,
+    )
+    ax.contour(xx, yy, predictions, levels=[0], colors="black", linewidths=1.5)
+
+
 def save_boundary_figure(normalized_matrix, weights, title, boundary_label, boundary_color, output_path):
     figure = plt.figure(figsize=(8, 6))
     ax = figure.add_subplot()
@@ -97,6 +139,16 @@ def save_boundary_figure(normalized_matrix, weights, title, boundary_label, boun
     save_figure(figure, output_path)
 
 
+def save_mlp_boundary_figure(normalized_matrix, mlp, title, output_path):
+    figure, ax = plt.subplots(figsize=(8, 6))
+    plot_mlp_decision_boundary(ax, mlp, normalized_matrix)
+    plot_initial_scatter(normalized_matrix, ax)
+    ax.set_title(title)
+    ax.set_xlabel("x1 normalizado")
+    ax.set_ylabel("x2 normalizado")
+    save_figure(figure, output_path)
+
+
 def save_initial_data_scatter(matrix, output_path):
     figure, ax = plt.subplots(figsize=(8, 6))
     plot_initial_scatter(matrix, ax)
@@ -109,11 +161,17 @@ def save_training_example(
     matrix,
     perceptron_boundary_dir,
     adaline_boundary_dir,
+    mlp_boundary_dir,
     perceptron_max_epochs,
     perceptron_learning_rate,
     adaline_max_epochs,
     adaline_learning_rate,
     adaline_precision,
+    run_mlp_training_example,
+    mlp_topology,
+    mlp_max_epochs,
+    mlp_learning_rate,
+    mlp_precision,
 ):
     train_matrix, test_matrix = create_normalized_train_test_split(matrix)
     normalized_matrix = np.vstack((train_matrix, test_matrix))[:, 1:]
@@ -126,7 +184,7 @@ def save_training_example(
         perceptron.W,
         "Separacao linear encontrada pelo Perceptron",
         "Fronteira Perceptron",
-        "tab:red",
+        "tab:purple",
         perceptron_boundary_dir / "fronteira_linear.png",
     )
 
@@ -138,6 +196,15 @@ def save_training_example(
         "tab:green",
         adaline_boundary_dir / "fronteira_linear.png",
     )
+
+    if run_mlp_training_example:
+        mlp = train_mlp(train_matrix, mlp_topology, mlp_max_epochs, mlp_learning_rate, mlp_precision)
+        save_mlp_boundary_figure(
+            normalized_matrix,
+            mlp,
+            "Fronteira de decisao encontrada pela MLP",
+            mlp_boundary_dir / "fronteira_decisao.png",
+        )
 
 
 def print_validation_results(results, model_specs, metric_specs):
@@ -260,6 +327,60 @@ def save_learning_curve(learning_curve, title, path, y_label):
     save_figure(figure, path)
 
 
+def format_topology(topology):
+    return "x".join(str(neuron_count) for neuron_count in topology)
+
+
+def save_mlp_topology_study(
+    matrix,
+    output_dir,
+    topology_study,
+    max_epochs,
+    learning_rate,
+    precision,
+    metric_specs,
+):
+    output_dir.mkdir(parents=True, exist_ok=True)
+    train_matrix, test_matrix = create_normalized_train_test_split(matrix)
+    normalized_matrix = np.vstack((train_matrix, test_matrix))[:, 1:]
+    table_path = output_dir / "resumo_topologias.csv"
+
+    with table_path.open("w", encoding="utf-8") as file:
+        header = ["Caso", "Topologia"] + [metric_label for _, metric_label, _ in metric_specs]
+        file.write(",".join(header) + "\n")
+
+        for case_name, topology in topology_study.items():
+            mlp = train_mlp(train_matrix, topology, max_epochs, learning_rate, precision)
+            tester = MonteCarloTester(test_matrix, mlp)
+            confusion_matrix = tester.run_test()
+            metrics = tester.calculate_validation_metrics(confusion_matrix)
+            topology_label = format_topology(topology)
+            case_dir = output_dir / case_name
+            title = f"MLP {case_name} | topologia {topology_label}"
+
+            values = [case_name, topology_label]
+            values.extend(f"{metrics[metric_key]:.6f}" for metric_key, _, _ in metric_specs)
+            file.write(",".join(values) + "\n")
+
+            save_confusion_matrix(
+                confusion_matrix,
+                title,
+                case_dir / "matriz_confusao.png",
+            )
+            save_learning_curve(
+                mlp.learning_curve,
+                title,
+                case_dir / "curva_aprendizado.png",
+                "EQM",
+            )
+            save_mlp_boundary_figure(
+                normalized_matrix,
+                mlp,
+                title,
+                case_dir / "fronteira_decisao.png",
+            )
+
+
 def save_figure(figure, path):
     path.parent.mkdir(parents=True, exist_ok=True)
     figure.tight_layout()
@@ -273,27 +394,44 @@ def main():
     boundary_output_dir = project_dir / "resultados/fronteiras"
     perceptron_boundary_dir = boundary_output_dir / "perceptron"
     adaline_boundary_dir = boundary_output_dir / "adaline"
-    comparison_output_dir = project_dir / "resultados/monte_carlo/comparacao_perceptron_adaline"
+    mlp_boundary_dir = boundary_output_dir / "mlp"
+    mlp_topology_output_dir = project_dir / "resultados/mlp/topologias"
+    comparison_output_dir = project_dir / "resultados/monte_carlo/comparacao_modelos"
 
-    perceptron_max_epochs = 1000
-    perceptron_learning_rate = 1e-1
+    perceptron_max_epochs = 10000
+    perceptron_learning_rate = 1e-2
     adaline_max_epochs = 10000
     adaline_learning_rate = 1e-2
     adaline_precision = 1e-8
+    mlp_topology = (10,)
+    mlp_max_epochs = 10000
+    mlp_learning_rate = 1e-2
+    mlp_precision = 1e-8
+    mlp_topology_study = {
+        "subdimensionado": (1,),
+        "referencia": mlp_topology,
+        "superdimensionado": (50, 50),
+    }
     monte_carlo_rounds = 500
     run_parallel = True
     max_workers = None
 
     run_training_example = True
+    run_mlp_training_example = True
+    run_mlp_topology_study = True
     run_monte_carlo = True
+    include_mlp_in_monte_carlo = True
     run_summary_tables = True
     run_best_worst_artifacts = True
 
     case_labels = {"best": "melhor", "worst": "pior"}
-    model_specs = (
+    model_specs = [
         ("perceptron", "Perceptron Simples", "perceptron", "Erros"),
         ("adaline", "ADALINE", "adaline", "EQM"),
-    )
+    ]
+    if include_mlp_in_monte_carlo:
+        model_specs.append(("mlp", "MLP", "mlp", "EQM"))
+    model_specs = tuple(model_specs)
     metric_specs = (
         ("accuracy", "Acuracia", "acuracia"),
         ("sensitivity", "Sensibilidade", "sensibilidade"),
@@ -306,6 +444,7 @@ def main():
 
     perceptron_boundary_dir.mkdir(parents=True, exist_ok=True)
     adaline_boundary_dir.mkdir(parents=True, exist_ok=True)
+    mlp_boundary_dir.mkdir(parents=True, exist_ok=True)
     comparison_output_dir.mkdir(parents=True, exist_ok=True)
     matrix = load_spiral_data(data_file)
     save_initial_data_scatter(matrix, boundary_output_dir / "dados_iniciais.png")
@@ -315,11 +454,28 @@ def main():
             matrix,
             perceptron_boundary_dir,
             adaline_boundary_dir,
+            mlp_boundary_dir,
             perceptron_max_epochs,
             perceptron_learning_rate,
             adaline_max_epochs,
             adaline_learning_rate,
             adaline_precision,
+            run_mlp_training_example,
+            mlp_topology,
+            mlp_max_epochs,
+            mlp_learning_rate,
+            mlp_precision,
+        )
+
+    if run_mlp_topology_study:
+        save_mlp_topology_study(
+            matrix,
+            mlp_topology_output_dir,
+            mlp_topology_study,
+            mlp_max_epochs,
+            mlp_learning_rate,
+            mlp_precision,
+            metric_specs,
         )
 
     if run_monte_carlo:
@@ -333,6 +489,11 @@ def main():
             adaline_max_epochs,
             adaline_learning_rate,
             adaline_precision,
+            include_mlp_in_monte_carlo,
+            mlp_topology,
+            mlp_max_epochs,
+            mlp_learning_rate,
+            mlp_precision,
             run_parallel,
             max_workers,
         )
