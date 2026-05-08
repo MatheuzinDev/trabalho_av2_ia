@@ -168,22 +168,6 @@ def write_summary_tables(results, output_dir, model_specs, metric_specs):
                 )
 
 
-def save_metric_boxplots(results, output_dir, model_specs, metric_specs):
-    for metric_key, metric_label, metric_file_label in metric_specs:
-
-        figure, ax = plt.subplots(figsize=(8, 5))
-        values = [results.metrics[model_key][metric_key] for model_key, _, _, _ in model_specs]
-        labels = [model_label for _, model_label, _, _ in model_specs]
-
-        ax.boxplot(values, labels=labels)
-        ax.set_title(f"Variacao de {metric_label} nas rodadas")
-        ax.set_ylabel(metric_label)
-        ax.grid(axis="y", alpha=0.3)
-        figure.autofmt_xdate(rotation=15)
-
-        save_figure(figure, output_dir / f"distribuicao_{metric_file_label}.png")
-
-
 def save_best_worst_artifacts(results, output_dir, model_specs, metric_specs, case_labels):
     artifacts_dir = output_dir / "casos_extremos"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
@@ -270,7 +254,6 @@ def main():
     run_training_example = True
     run_monte_carlo = True
     run_summary_tables = True
-    run_metric_boxplots = True
     run_best_worst_artifacts = True
 
     case_labels = {"best": "melhor", "worst": "pior"}
@@ -323,9 +306,6 @@ def main():
 
         if run_summary_tables:
             write_summary_tables(results, comparison_output_dir, model_specs, metric_specs)
-
-        if run_metric_boxplots:
-            save_metric_boxplots(results, comparison_output_dir, model_specs, metric_specs)
 
         if run_best_worst_artifacts:
             save_best_worst_artifacts(results, comparison_output_dir, model_specs, metric_specs, case_labels)

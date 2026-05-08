@@ -15,29 +15,62 @@ python3 -m pip install -r requirements.txt
 python3 main.py
 ```
 
-## Estrutura
+Ao final da execucao, os arquivos sao gerados dentro da pasta `resultados/`.
+
+## Resultados Gerados
 
 ```text
-trabalho_av2_ia/
-  main.py
-  dados.py
-  metricas.py
-  monte_carlo.py
-  spiral_d.csv
-  modelos/
-    perceptron.py
-    adaline.py
-    mlp.py
-  resultados/
-    fronteiras/
-      perceptron/
-      adaline/
-    monte_carlo/
-      comparacao_perceptron_adaline/
+resultados/
+├── fronteiras/
+│   ├── perceptron/
+│   └── adaline/
+└── monte_carlo/
+    └── comparacao_perceptron_adaline/
+        ├── resumo_*.csv
+        └── casos_extremos/
 ```
 
-## Saidas
+### Fronteiras
 
-As imagens das fronteiras lineares sao geradas em `resultados/fronteiras/`.
+`resultados/fronteiras/` guarda os graficos das fronteiras lineares encontradas pelos modelos.
 
-Os resultados estatisticos comparando Perceptron Simples e ADALINE sao gerados em `resultados/monte_carlo/comparacao_perceptron_adaline/`.
+- `perceptron/fronteira_linear.png`: mostra a reta gerada pelo Perceptron Simples.
+- `adaline/fronteira_linear.png`: mostra a reta gerada pelo ADALINE.
+
+Essas imagens servem para visualizar como cada modelo tenta separar as duas classes do conjunto `spiral_d.csv`.
+
+### Monte Carlo
+
+`resultados/monte_carlo/comparacao_perceptron_adaline/` guarda a comparacao estatistica entre Perceptron Simples e ADALINE.
+
+A validacao usa `500` rodadas. Em cada rodada, os dados sao embaralhados e divididos em `80%` para treino e `20%` para teste.
+
+### Tabelas Resumo
+
+Os arquivos `resumo_*.csv` apresentam uma tabela para cada metrica:
+
+- `resumo_acuracia.csv`
+- `resumo_sensibilidade.csv`
+- `resumo_especificidade.csv`
+- `resumo_precisao.csv`
+- `resumo_f1_score.csv`
+
+Cada tabela mostra, para cada modelo, a media, o desvio-padrao, o maior valor e o menor valor obtidos nas rodadas de Monte Carlo.
+
+### Casos Extremos
+
+`casos_extremos/` guarda os melhores e piores casos de cada metrica para cada modelo.
+
+A organizacao segue este formato:
+
+```text
+casos_extremos/modelo/metrica/melhor/
+casos_extremos/modelo/metrica/pior/
+```
+
+Cada pasta possui:
+
+- `matriz_confusao.png`: mostra os acertos e erros da rodada selecionada.
+- `curva_aprendizado.png`: mostra a evolucao do treinamento.
+
+No Perceptron, a curva representa os erros por epoca. No ADALINE, a curva representa o EQM por epoca.
