@@ -22,6 +22,7 @@ Ao final da execucao, os arquivos sao gerados dentro da pasta `resultados/`.
 ```text
 resultados/
 ├── fronteiras/
+│   ├── dados_iniciais.png
 │   ├── perceptron/
 │   └── adaline/
 └── monte_carlo/
@@ -34,10 +35,11 @@ resultados/
 
 `resultados/fronteiras/` guarda os graficos das fronteiras lineares encontradas pelos modelos.
 
+- `dados_iniciais.png`: mostra o grafico de espalhamento original do conjunto, sem fronteira de decisao.
 - `perceptron/fronteira_linear.png`: mostra a reta gerada pelo Perceptron Simples.
 - `adaline/fronteira_linear.png`: mostra a reta gerada pelo ADALINE.
 
-Essas imagens servem para visualizar como cada modelo tenta separar as duas classes do conjunto `spiral_d.csv`.
+Essas imagens servem para visualizar a distribuicao inicial dos dados e como cada modelo tenta separar as duas classes do conjunto `spiral_d.csv`.
 
 ### Monte Carlo
 

@@ -5,6 +5,7 @@ import numpy as np
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 
 from dados import create_train_test_split, load_spiral_matrix, normalize_train_test
 from modelos.adaline import Adaline
@@ -93,6 +94,14 @@ def save_boundary_figure(normalized_matrix, weights, title, boundary_label, boun
         boundary_color,
     )
 
+    save_figure(figure, output_path)
+
+
+def save_initial_data_scatter(matrix, output_path):
+    figure, ax = plt.subplots(figsize=(8, 6))
+    plot_initial_scatter(matrix, ax)
+    ax.set_title("Distribuicao inicial dos dados")
+    ax.grid(alpha=0.3)
     save_figure(figure, output_path)
 
 
@@ -199,20 +208,44 @@ def save_best_worst_artifacts(results, output_dir, model_specs, metric_specs, ca
 
 
 def save_confusion_matrix(confusion_matrix, title, path):
-    figure, ax = plt.subplots(figsize=(5, 4))
+    figure, ax = plt.subplots(figsize=(6, 5))
     matrix = np.asarray(confusion_matrix, dtype=int)
-    image = ax.imshow(matrix, cmap="Blues")
-    figure.colorbar(image, ax=ax)
 
-    ax.set_title(title)
-    ax.set_xticks([0, 1])
-    ax.set_yticks([0, 1])
-    ax.set_xticklabels(["Pred +1", "Pred -1"])
-    ax.set_yticklabels(["Real +1", "Real -1"])
+    cells = (
+        (0, 0, "Verdadeiro\nPositivo\n[1,1]", matrix[0, 0], "#d8ead3"),
+        (1, 0, "Falso\nPositivo\n[1,-1]", matrix[0, 1], "#eda5ad"),
+        (0, 1, "Falso\nNegativo\n[-1,1]", matrix[1, 0], "#eda5ad"),
+        (1, 1, "Verdadeiro\nNegativo\n[-1,-1]", matrix[1, 1], "#d8ead3"),
+    )
 
-    for i in range(2):
-        for j in range(2):
-            ax.text(j, i, str(matrix[i, j]), ha="center", va="center")
+    for column, row, label, value, color in cells:
+        ax.add_patch(Rectangle((column, row), 1, 1, facecolor=color, edgecolor="black"))
+        ax.text(
+            column + 0.5,
+            row + 0.5,
+            f"{label}\n{value}",
+            ha="center",
+            va="center",
+            fontsize=10,
+        )
+
+    ax.set_title(title, pad=55, fontsize=9)
+    ax.set_xlabel("Real", fontsize=14, labelpad=12)
+    ax.set_ylabel("Predito", fontsize=14, labelpad=18)
+    ax.xaxis.set_label_position("top")
+    ax.xaxis.tick_top()
+
+    ax.set_xticks([0.5, 1.5])
+    ax.set_yticks([0.5, 1.5])
+    ax.set_xticklabels(["Condicao\nPositiva", "Condicao\nNegativa"])
+    ax.set_yticklabels(["Condicao\nPositiva", "Condicao\nNegativa"], rotation=90, va="center")
+    ax.tick_params(length=0)
+    ax.set_xlim(0, 2)
+    ax.set_ylim(2, 0)
+    ax.set_aspect("equal")
+
+    for spine in ax.spines.values():
+        spine.set_visible(False)
 
     save_figure(figure, path)
 
@@ -275,6 +308,7 @@ def main():
     adaline_boundary_dir.mkdir(parents=True, exist_ok=True)
     comparison_output_dir.mkdir(parents=True, exist_ok=True)
     matrix = load_spiral_data(data_file)
+    save_initial_data_scatter(matrix, boundary_output_dir / "dados_iniciais.png")
 
     if run_training_example:
         save_training_example(
