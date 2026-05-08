@@ -7,6 +7,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from dados import create_train_test_split, load_spiral_matrix, normalize_train_test
+from modelos.adaline import Adaline
 from modelos.perceptron import SimplePerceptron
 from monte_carlo import run_monte_carlo_validation
 
@@ -68,16 +69,17 @@ def train_perceptron(train_matrix, max_epochs, learning_rate):
     return model
 
 
-def save_training_example(matrix, output_dir, max_epochs, learning_rate):
-    train_matrix, test_matrix = create_normalized_train_test_split(matrix)
-    normalized_matrix = np.vstack((train_matrix, test_matrix))[:, 1:]
+def train_adaline(train_matrix, max_epochs, learning_rate, precision):
+    model = Adaline(train_matrix[:, 1:])
+    model.fit(max_epochs, learning_rate, precision)
+    return model
 
-    perceptron = train_perceptron(train_matrix, max_epochs, learning_rate)
 
+def save_boundary_figure(normalized_matrix, weights, title, boundary_label, boundary_color, output_path):
     figure = plt.figure(figsize=(8, 6))
     ax = figure.add_subplot()
     plot_initial_scatter(normalized_matrix, ax)
-    ax.set_title("Separacao linear encontrada pelo Perceptron")
+    ax.set_title(title)
 
     x1_min = normalized_matrix[:, 0].min()
     x1_max = normalized_matrix[:, 0].max()
@@ -85,13 +87,48 @@ def save_training_example(matrix, output_dir, max_epochs, learning_rate):
 
     plot_linear_decision_boundary(
         ax,
-        perceptron.W,
+        weights,
         x1_values,
-        "Fronteira Perceptron",
-        "tab:red",
+        boundary_label,
+        boundary_color,
     )
 
-    save_figure(figure, output_dir / "fronteira_linear_perceptron.png")
+    save_figure(figure, output_path)
+
+
+def save_training_example(
+    matrix,
+    perceptron_output_dir,
+    adaline_output_dir,
+    perceptron_max_epochs,
+    perceptron_learning_rate,
+    adaline_max_epochs,
+    adaline_learning_rate,
+    adaline_precision,
+):
+    train_matrix, test_matrix = create_normalized_train_test_split(matrix)
+    normalized_matrix = np.vstack((train_matrix, test_matrix))[:, 1:]
+
+    perceptron = train_perceptron(train_matrix, perceptron_max_epochs, perceptron_learning_rate)
+    adaline = train_adaline(train_matrix, adaline_max_epochs, adaline_learning_rate, adaline_precision)
+
+    save_boundary_figure(
+        normalized_matrix,
+        perceptron.W,
+        "Separacao linear encontrada pelo Perceptron",
+        "Fronteira Perceptron",
+        "tab:red",
+        perceptron_output_dir / "fronteira_linear_perceptron.png",
+    )
+
+    save_boundary_figure(
+        normalized_matrix,
+        adaline.W,
+        "Separacao linear encontrada pelo ADALINE",
+        "Fronteira ADALINE",
+        "tab:green",
+        adaline_output_dir / "fronteira_linear_adaline.png",
+    )
 
 
 def print_validation_results(results, model_label, metric_specs):
@@ -210,11 +247,15 @@ def save_figure(figure, path):
 def main():
     project_dir = Path(__file__).resolve().parent
     data_file = project_dir / "spiral_d.csv"
-    output_dir = project_dir / "resultados/perceptron"
+    perceptron_output_dir = project_dir / "resultados/perceptron"
+    adaline_output_dir = project_dir / "resultados/adaline"
     model_label = "Perceptron Simples"
 
-    max_epochs = 10000
-    learning_rate = 1e-2
+    max_epochs = 1000
+    learning_rate = 1e-1
+    adaline_max_epochs = 10000
+    adaline_learning_rate = 1e-2
+    adaline_precision = 1e-8
     monte_carlo_rounds = 500
     run_parallel = True
     max_workers = None
@@ -235,11 +276,21 @@ def main():
     )
     metric_keys = tuple(metric_key for metric_key, _, _ in metric_specs)
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+    perceptron_output_dir.mkdir(parents=True, exist_ok=True)
+    adaline_output_dir.mkdir(parents=True, exist_ok=True)
     matrix = load_spiral_data(data_file)
 
     if run_training_example:
-        save_training_example(matrix, output_dir, max_epochs, learning_rate)
+        save_training_example(
+            matrix,
+            perceptron_output_dir,
+            adaline_output_dir,
+            max_epochs,
+            learning_rate,
+            adaline_max_epochs,
+            adaline_learning_rate,
+            adaline_precision,
+        )
 
     if run_monte_carlo:
         results = run_monte_carlo_validation(
@@ -254,15 +305,16 @@ def main():
         print_validation_results(results, model_label, metric_specs)
 
         if run_summary_tables:
-            write_summary_tables(results, output_dir, model_label, metric_specs)
+            write_summary_tables(results, perceptron_output_dir, model_label, metric_specs)
 
         if run_metric_boxplots:
-            save_metric_boxplots(results, output_dir, model_label, metric_specs)
+            save_metric_boxplots(results, perceptron_output_dir, model_label, metric_specs)
 
         if run_best_worst_artifacts:
-            save_best_worst_artifacts(results, output_dir, model_label, metric_specs, case_labels)
+            save_best_worst_artifacts(results, perceptron_output_dir, model_label, metric_specs, case_labels)
 
-    print(f"\nResultados gravados em: {output_dir.resolve()}")
+    print(f"\nResultados do Perceptron gravados em: {perceptron_output_dir.resolve()}")
+    print(f"Imagem do ADALINE gravada em: {adaline_output_dir.resolve()}")
 
 
 if __name__ == "__main__":

@@ -30,8 +30,11 @@ trabalho_av2_ia/
     mlp.py
   resultados/
     perceptron/
+    adaline/
 ```
 
 ## Saidas
 
-Ao executar o projeto, os artefatos do Perceptron Simples são gerados em `resultados/perceptron/`.
+Ao executar o projeto, os artefatos do Perceptron Simples sao gerados em `resultados/perceptron/`.
+
+A imagem da fronteira linear do ADALINE e gerada separadamente em `resultados/adaline/`.
