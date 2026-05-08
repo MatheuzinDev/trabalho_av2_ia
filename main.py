@@ -98,8 +98,8 @@ def save_boundary_figure(normalized_matrix, weights, title, boundary_label, boun
 
 def save_training_example(
     matrix,
-    perceptron_output_dir,
-    adaline_output_dir,
+    perceptron_boundary_dir,
+    adaline_boundary_dir,
     perceptron_max_epochs,
     perceptron_learning_rate,
     adaline_max_epochs,
@@ -118,7 +118,7 @@ def save_training_example(
         "Separacao linear encontrada pelo Perceptron",
         "Fronteira Perceptron",
         "tab:red",
-        perceptron_output_dir / "fronteira_linear_perceptron.png",
+        perceptron_boundary_dir / "fronteira_linear.png",
     )
 
     save_boundary_figure(
@@ -127,49 +127,53 @@ def save_training_example(
         "Separacao linear encontrada pelo ADALINE",
         "Fronteira ADALINE",
         "tab:green",
-        adaline_output_dir / "fronteira_linear_adaline.png",
+        adaline_boundary_dir / "fronteira_linear.png",
     )
 
 
-def print_validation_results(results, model_label, metric_specs):
-    print(f"\nAnalise estatistica do {model_label}")
+def print_validation_results(results, model_specs, metric_specs):
+    print("\nAnalise estatistica comparativa")
 
     for metric_key, metric_label, _ in metric_specs:
         print(f"\nResumo estatistico de {metric_label}")
         print(f"{'Modelo':<28} {'Media':>10} {'Desvio':>10} {'Maior':>10} {'Menor':>10}")
 
-        summary = results.summary(metric_key)
-        print(
-            f"{model_label:<28} "
-            f"{summary['mean']:>10.4f} "
-            f"{summary['std']:>10.4f} "
-            f"{summary['max']:>10.4f} "
-            f"{summary['min']:>10.4f}"
-        )
+        for model_key, model_label, _, _ in model_specs:
+            summary = results.summary(model_key, metric_key)
+            print(
+                f"{model_label:<28} "
+                f"{summary['mean']:>10.4f} "
+                f"{summary['std']:>10.4f} "
+                f"{summary['max']:>10.4f} "
+                f"{summary['min']:>10.4f}"
+            )
 
 
-def write_summary_tables(results, output_dir, model_label, metric_specs):
+def write_summary_tables(results, output_dir, model_specs, metric_specs):
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     for metric_key, _, metric_file_label in metric_specs:
         table_path = output_dir / f"resumo_{metric_file_label}.csv"
 
         with table_path.open("w", encoding="utf-8") as file:
             file.write("Modelo,Media,Desvio-Padrao,Maior Valor,Menor Valor\n")
-            summary = results.summary(metric_key)
-            file.write(
-                f"{model_label},"
-                f"{summary['mean']:.6f},"
-                f"{summary['std']:.6f},"
-                f"{summary['max']:.6f},"
-                f"{summary['min']:.6f}\n"
-            )
+            for model_key, model_label, _, _ in model_specs:
+                summary = results.summary(model_key, metric_key)
+                file.write(
+                    f"{model_label},"
+                    f"{summary['mean']:.6f},"
+                    f"{summary['std']:.6f},"
+                    f"{summary['max']:.6f},"
+                    f"{summary['min']:.6f}\n"
+                )
 
 
-def save_metric_boxplots(results, output_dir, model_label, metric_specs):
+def save_metric_boxplots(results, output_dir, model_specs, metric_specs):
     for metric_key, metric_label, metric_file_label in metric_specs:
 
         figure, ax = plt.subplots(figsize=(8, 5))
-        values = [results.metrics[metric_key]]
-        labels = [model_label]
+        values = [results.metrics[model_key][metric_key] for model_key, _, _, _ in model_specs]
+        labels = [model_label for _, model_label, _, _ in model_specs]
 
         ax.boxplot(values, labels=labels)
         ax.set_title(f"Variacao de {metric_label} nas rodadas")
@@ -180,32 +184,34 @@ def save_metric_boxplots(results, output_dir, model_label, metric_specs):
         save_figure(figure, output_dir / f"distribuicao_{metric_file_label}.png")
 
 
-def save_best_worst_artifacts(results, output_dir, model_label, metric_specs, case_labels):
+def save_best_worst_artifacts(results, output_dir, model_specs, metric_specs, case_labels):
     artifacts_dir = output_dir / "casos_extremos"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    for metric_key, metric_label, metric_file_label in metric_specs:
-        cases = results.best_worst_cases(metric_key)
+    for model_key, model_label, model_folder, learning_curve_label in model_specs:
+        for metric_key, metric_label, metric_file_label in metric_specs:
+            cases = results.best_worst_cases(model_key, metric_key)
 
-        for case_name, record in cases.items():
-            case_label = case_labels[case_name]
-            case_dir = artifacts_dir / metric_file_label / case_label
-            metric_value = record["metrics"][metric_key]
-            title = (
-                f"{model_label} | {case_label} caso em {metric_label} | "
-                f"rodada {record['round']} | valor={metric_value:.4f}"
-            )
+            for case_name, record in cases.items():
+                case_label = case_labels[case_name]
+                case_dir = artifacts_dir / model_folder / metric_file_label / case_label
+                metric_value = record["metrics"][metric_key]
+                title = (
+                    f"{model_label} | {case_label} caso em {metric_label} | "
+                    f"rodada {record['round']} | valor={metric_value:.4f}"
+                )
 
-            save_confusion_matrix(
-                record["confusion_matrix"],
-                title,
-                case_dir / "matriz_confusao.png",
-            )
-            save_learning_curve(
-                record["learning_curve"],
-                title,
-                case_dir / "curva_aprendizado.png",
-            )
+                save_confusion_matrix(
+                    record["confusion_matrix"],
+                    title,
+                    case_dir / "matriz_confusao.png",
+                )
+                save_learning_curve(
+                    record["learning_curve"],
+                    title,
+                    case_dir / "curva_aprendizado.png",
+                    learning_curve_label,
+                )
 
 
 def save_confusion_matrix(confusion_matrix, title, path):
@@ -227,12 +233,12 @@ def save_confusion_matrix(confusion_matrix, title, path):
     save_figure(figure, path)
 
 
-def save_learning_curve(learning_curve, title, path):
+def save_learning_curve(learning_curve, title, path, y_label):
     figure, ax = plt.subplots(figsize=(7, 4))
     ax.plot(range(len(learning_curve)), learning_curve)
     ax.set_title(title)
     ax.set_xlabel("Epoca")
-    ax.set_ylabel("Erros")
+    ax.set_ylabel(y_label)
     ax.grid(alpha=0.3)
     save_figure(figure, path)
 
@@ -247,12 +253,13 @@ def save_figure(figure, path):
 def main():
     project_dir = Path(__file__).resolve().parent
     data_file = project_dir / "spiral_d.csv"
-    perceptron_output_dir = project_dir / "resultados/perceptron"
-    adaline_output_dir = project_dir / "resultados/adaline"
-    model_label = "Perceptron Simples"
+    boundary_output_dir = project_dir / "resultados/fronteiras"
+    perceptron_boundary_dir = boundary_output_dir / "perceptron"
+    adaline_boundary_dir = boundary_output_dir / "adaline"
+    comparison_output_dir = project_dir / "resultados/monte_carlo/comparacao_perceptron_adaline"
 
-    max_epochs = 1000
-    learning_rate = 1e-1
+    perceptron_max_epochs = 1000
+    perceptron_learning_rate = 1e-1
     adaline_max_epochs = 10000
     adaline_learning_rate = 1e-2
     adaline_precision = 1e-8
@@ -267,6 +274,10 @@ def main():
     run_best_worst_artifacts = True
 
     case_labels = {"best": "melhor", "worst": "pior"}
+    model_specs = (
+        ("perceptron", "Perceptron Simples", "perceptron", "Erros"),
+        ("adaline", "ADALINE", "adaline", "EQM"),
+    )
     metric_specs = (
         ("accuracy", "Acuracia", "acuracia"),
         ("sensitivity", "Sensibilidade", "sensibilidade"),
@@ -274,19 +285,21 @@ def main():
         ("precision", "Precisao", "precisao"),
         ("f1_score", "F1-score", "f1_score"),
     )
+    model_keys = tuple(model_key for model_key, _, _, _ in model_specs)
     metric_keys = tuple(metric_key for metric_key, _, _ in metric_specs)
 
-    perceptron_output_dir.mkdir(parents=True, exist_ok=True)
-    adaline_output_dir.mkdir(parents=True, exist_ok=True)
+    perceptron_boundary_dir.mkdir(parents=True, exist_ok=True)
+    adaline_boundary_dir.mkdir(parents=True, exist_ok=True)
+    comparison_output_dir.mkdir(parents=True, exist_ok=True)
     matrix = load_spiral_data(data_file)
 
     if run_training_example:
         save_training_example(
             matrix,
-            perceptron_output_dir,
-            adaline_output_dir,
-            max_epochs,
-            learning_rate,
+            perceptron_boundary_dir,
+            adaline_boundary_dir,
+            perceptron_max_epochs,
+            perceptron_learning_rate,
             adaline_max_epochs,
             adaline_learning_rate,
             adaline_precision,
@@ -295,26 +308,30 @@ def main():
     if run_monte_carlo:
         results = run_monte_carlo_validation(
             matrix,
+            model_keys,
             metric_keys,
             monte_carlo_rounds,
-            max_epochs,
-            learning_rate,
+            perceptron_max_epochs,
+            perceptron_learning_rate,
+            adaline_max_epochs,
+            adaline_learning_rate,
+            adaline_precision,
             run_parallel,
             max_workers,
         )
-        print_validation_results(results, model_label, metric_specs)
+        print_validation_results(results, model_specs, metric_specs)
 
         if run_summary_tables:
-            write_summary_tables(results, perceptron_output_dir, model_label, metric_specs)
+            write_summary_tables(results, comparison_output_dir, model_specs, metric_specs)
 
         if run_metric_boxplots:
-            save_metric_boxplots(results, perceptron_output_dir, model_label, metric_specs)
+            save_metric_boxplots(results, comparison_output_dir, model_specs, metric_specs)
 
         if run_best_worst_artifacts:
-            save_best_worst_artifacts(results, perceptron_output_dir, model_label, metric_specs, case_labels)
+            save_best_worst_artifacts(results, comparison_output_dir, model_specs, metric_specs, case_labels)
 
-    print(f"\nResultados do Perceptron gravados em: {perceptron_output_dir.resolve()}")
-    print(f"Imagem do ADALINE gravada em: {adaline_output_dir.resolve()}")
+    print(f"\nFronteiras dos modelos gravadas em: {boundary_output_dir.resolve()}")
+    print(f"Comparacao Monte Carlo gravada em: {comparison_output_dir.resolve()}")
 
 
 if __name__ == "__main__":

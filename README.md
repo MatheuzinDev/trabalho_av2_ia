@@ -29,12 +29,15 @@ trabalho_av2_ia/
     adaline.py
     mlp.py
   resultados/
-    perceptron/
-    adaline/
+    fronteiras/
+      perceptron/
+      adaline/
+    monte_carlo/
+      comparacao_perceptron_adaline/
 ```
 
 ## Saidas
 
-Ao executar o projeto, os artefatos do Perceptron Simples sao gerados em `resultados/perceptron/`.
+As imagens das fronteiras lineares sao geradas em `resultados/fronteiras/`.
 
-A imagem da fronteira linear do ADALINE e gerada separadamente em `resultados/adaline/`.
+Os resultados estatisticos comparando Perceptron Simples e ADALINE sao gerados em `resultados/monte_carlo/comparacao_perceptron_adaline/`.

@@ -6,6 +6,7 @@ import numpy as np
 
 from dados import create_train_test_split, normalize_train_test
 from metricas import calculate_validation_metrics, summarize_metric_values
+from modelos.adaline import Adaline
 from modelos.perceptron import SimplePerceptron
 
 
@@ -22,33 +23,37 @@ def format_duration(seconds):
 
 
 class MonteCarloResults:
-    def __init__(self, metric_keys):
+    def __init__(self, model_keys, metric_keys):
+        self.model_keys = tuple(model_keys)
         self.metric_keys = tuple(metric_keys)
-        self.metrics = {metric_key: [] for metric_key in self.metric_keys}
-        self.records = []
+        self.metrics = {
+            model_key: {metric_key: [] for metric_key in self.metric_keys}
+            for model_key in self.model_keys
+        }
+        self.records = {model_key: [] for model_key in self.model_keys}
 
-    def add_record(self, round_index, confusion_matrix, metric_values, learning_curve):
+    def add_record(self, model_key, round_index, confusion_matrix, metric_values, learning_curve):
         record = {
             "round": round_index,
             "confusion_matrix": np.asarray(confusion_matrix, dtype=int),
             "metrics": metric_values,
             "learning_curve": list(learning_curve),
         }
-        self.records.append(record)
+        self.records[model_key].append(record)
 
         for metric_key in self.metric_keys:
-            self.metrics[metric_key].append(metric_values[metric_key])
+            self.metrics[model_key][metric_key].append(metric_values[metric_key])
 
-    def summary(self, metric_key):
-        return summarize_metric_values(self.metrics[metric_key])
+    def summary(self, model_key, metric_key):
+        return summarize_metric_values(self.metrics[model_key][metric_key])
 
-    def best_worst_cases(self, metric_key):
-        values = np.asarray(self.metrics[metric_key], dtype=float)
+    def best_worst_cases(self, model_key, metric_key):
+        values = np.asarray(self.metrics[model_key][metric_key], dtype=float)
         best_index = int(np.nanargmax(values))
         worst_index = int(np.nanargmin(values))
         return {
-            "best": self.records[best_index],
-            "worst": self.records[worst_index],
+            "best": self.records[model_key][best_index],
+            "worst": self.records[model_key][worst_index],
         }
 
 
@@ -91,23 +96,42 @@ class MonteCarloTester:
 
 
 def _run_single_round(args):
-    round_index, matrix, max_epochs, learning_rate = args
+    (
+        round_index,
+        matrix,
+        perceptron_max_epochs,
+        perceptron_learning_rate,
+        adaline_max_epochs,
+        adaline_learning_rate,
+        adaline_precision,
+    ) = args
 
     train_matrix, test_matrix = create_train_test_split(matrix)
     train_matrix, test_matrix = normalize_train_test(train_matrix, test_matrix)
 
-    initial_weights = np.random.uniform(0, 1, train_matrix.shape[1] - 1)
+    perceptron_weights = np.random.uniform(0, 1, train_matrix.shape[1] - 1)
     perceptron = SimplePerceptron(
         train_matrix[:, :3],
-        initial_weights,
+        perceptron_weights,
         train_matrix[:, -1],
-        max_epochs,
-        learning_rate,
+        perceptron_max_epochs,
+        perceptron_learning_rate,
     )
     perceptron.progress_prefix = f"[Rodada {round_index}] "
     perceptron.fit()
 
-    tester = MonteCarloTester(test_matrix, perceptron)
+    adaline = Adaline(train_matrix[:, 1:])
+    adaline.progress_prefix = f"[Rodada {round_index}] "
+    adaline.fit(adaline_max_epochs, adaline_learning_rate, adaline_precision)
+
+    return {
+        "perceptron": _evaluate_model(round_index, test_matrix, perceptron),
+        "adaline": _evaluate_model(round_index, test_matrix, adaline),
+    }
+
+
+def _evaluate_model(round_index, test_matrix, model):
+    tester = MonteCarloTester(test_matrix, model)
     confusion_matrix = tester.run_test()
     metric_values = tester.calculate_validation_metrics(confusion_matrix)
 
@@ -115,17 +139,19 @@ def _run_single_round(args):
         "round": round_index,
         "confusion_matrix": confusion_matrix,
         "metrics": metric_values,
-        "learning_curve": perceptron.learning_curve,
+        "learning_curve": getattr(model, "learning_curve", []),
     }
 
 
 def _append_round_results(results, round_result, completed_rounds, total_rounds, start_time):
-    results.add_record(
-        round_result["round"],
-        round_result["confusion_matrix"],
-        round_result["metrics"],
-        round_result["learning_curve"],
-    )
+    for model_key, model_result in round_result.items():
+        results.add_record(
+            model_key,
+            model_result["round"],
+            model_result["confusion_matrix"],
+            model_result["metrics"],
+            model_result["learning_curve"],
+        )
 
     elapsed_seconds = time.perf_counter() - start_time
     average_seconds_per_round = elapsed_seconds / completed_rounds
@@ -133,7 +159,7 @@ def _append_round_results(results, round_result, completed_rounds, total_rounds,
     estimated_remaining_seconds = average_seconds_per_round * remaining_rounds
 
     print(
-        f"[Rodada {round_result['round']}/{total_rounds}] concluida | "
+        f"[Rodada {next(iter(round_result.values()))['round']}/{total_rounds}] concluida | "
         f"decorrido: {format_duration(elapsed_seconds)} | "
         f"restante estimado: {format_duration(estimated_remaining_seconds)}"
     )
@@ -141,18 +167,30 @@ def _append_round_results(results, round_result, completed_rounds, total_rounds,
 
 def run_monte_carlo_validation(
     matrix,
+    model_keys,
     metric_keys,
     rounds,
-    max_epochs,
-    learning_rate,
+    perceptron_max_epochs,
+    perceptron_learning_rate,
+    adaline_max_epochs,
+    adaline_learning_rate,
+    adaline_precision,
     parallel,
     max_workers,
 ):
-    results = MonteCarloResults(metric_keys)
+    results = MonteCarloResults(model_keys, metric_keys)
     start_time = time.perf_counter()
     completed_rounds = 0
     round_args = [
-        (round_index, matrix, max_epochs, learning_rate)
+        (
+            round_index,
+            matrix,
+            perceptron_max_epochs,
+            perceptron_learning_rate,
+            adaline_max_epochs,
+            adaline_learning_rate,
+            adaline_precision,
+        )
         for round_index in range(1, rounds + 1)
     ]
 
