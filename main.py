@@ -77,7 +77,7 @@ def save_training_example(matrix, output_dir, max_epochs, learning_rate):
     figure = plt.figure(figsize=(8, 6))
     ax = figure.add_subplot()
     plot_initial_scatter(normalized_matrix, ax)
-    ax.set_title("Dados normalizados e fronteira linear")
+    ax.set_title("Separacao linear encontrada pelo Perceptron")
 
     x1_min = normalized_matrix[:, 0].min()
     x1_max = normalized_matrix[:, 0].max()
@@ -91,12 +91,14 @@ def save_training_example(matrix, output_dir, max_epochs, learning_rate):
         "tab:red",
     )
 
-    save_figure(figure, output_dir / "01_dados_normalizados_fronteira.png")
+    save_figure(figure, output_dir / "fronteira_linear_perceptron.png")
 
 
 def print_validation_results(results, model_label, metric_specs):
+    print(f"\nAnalise estatistica do {model_label}")
+
     for metric_key, metric_label, _ in metric_specs:
-        print(f"\n\n------- {metric_label.upper()} -------")
+        print(f"\nResumo estatistico de {metric_label}")
         print(f"{'Modelo':<28} {'Media':>10} {'Desvio':>10} {'Maior':>10} {'Menor':>10}")
 
         summary = results.summary(metric_key)
@@ -111,7 +113,7 @@ def print_validation_results(results, model_label, metric_specs):
 
 def write_summary_tables(results, output_dir, model_label, metric_specs):
     for metric_key, _, metric_file_label in metric_specs:
-        table_path = output_dir / f"tabela_{metric_file_label}.csv"
+        table_path = output_dir / f"resumo_{metric_file_label}.csv"
 
         with table_path.open("w", encoding="utf-8") as file:
             file.write("Modelo,Media,Desvio-Padrao,Maior Valor,Menor Valor\n")
@@ -133,16 +135,16 @@ def save_metric_boxplots(results, output_dir, model_label, metric_specs):
         labels = [model_label]
 
         ax.boxplot(values, labels=labels)
-        ax.set_title(f"Distribuicao - {metric_label}")
+        ax.set_title(f"Variacao de {metric_label} nas rodadas")
         ax.set_ylabel(metric_label)
         ax.grid(axis="y", alpha=0.3)
         figure.autofmt_xdate(rotation=15)
 
-        save_figure(figure, output_dir / f"grafico_caixa_{metric_file_label}.png")
+        save_figure(figure, output_dir / f"distribuicao_{metric_file_label}.png")
 
 
 def save_best_worst_artifacts(results, output_dir, model_label, metric_specs, case_labels):
-    artifacts_dir = output_dir / "melhores_piores"
+    artifacts_dir = output_dir / "casos_extremos"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     for metric_key, metric_label, metric_file_label in metric_specs:
@@ -150,19 +152,22 @@ def save_best_worst_artifacts(results, output_dir, model_label, metric_specs, ca
 
         for case_name, record in cases.items():
             case_label = case_labels[case_name]
-            prefix = f"perceptron_{metric_file_label}_{case_label}_rodada_{record['round']}"
+            case_dir = artifacts_dir / metric_file_label / case_label
             metric_value = record["metrics"][metric_key]
-            title = f"{model_label} - {case_label} {metric_label} = {metric_value:.4f}"
+            title = (
+                f"{model_label} | {case_label} caso em {metric_label} | "
+                f"rodada {record['round']} | valor={metric_value:.4f}"
+            )
 
             save_confusion_matrix(
                 record["confusion_matrix"],
                 title,
-                artifacts_dir / f"{prefix}_matriz_confusao.png",
+                case_dir / "matriz_confusao.png",
             )
             save_learning_curve(
                 record["learning_curve"],
                 title,
-                artifacts_dir / f"{prefix}_curva_aprendizado.png",
+                case_dir / "curva_aprendizado.png",
             )
 
 
@@ -215,7 +220,7 @@ def main():
     max_workers = None
 
     run_training_example = True
-    run_monte_carlo = False
+    run_monte_carlo = True
     run_summary_tables = True
     run_metric_boxplots = True
     run_best_worst_artifacts = True
@@ -257,7 +262,7 @@ def main():
         if run_best_worst_artifacts:
             save_best_worst_artifacts(results, output_dir, model_label, metric_specs, case_labels)
 
-    print(f"\nArtefatos salvos em: {output_dir.resolve()}")
+    print(f"\nResultados gravados em: {output_dir.resolve()}")
 
 
 if __name__ == "__main__":
