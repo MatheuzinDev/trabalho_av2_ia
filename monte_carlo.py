@@ -1,4 +1,5 @@
 import os
+import time
 from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
@@ -6,6 +7,18 @@ import numpy as np
 from dados import create_train_test_split, normalize_train_test
 from metricas import calculate_validation_metrics, summarize_metric_values
 from modelos.perceptron import SimplePerceptron
+
+
+def format_duration(seconds):
+    total_seconds = max(0, int(round(seconds)))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    if hours > 0:
+        return f"{hours:02d}h{minutes:02d}m{seconds:02d}s"
+    if minutes > 0:
+        return f"{minutes:02d}m{seconds:02d}s"
+    return f"{seconds:02d}s"
 
 
 class MonteCarloResults:
@@ -106,14 +119,24 @@ def _run_single_round(args):
     }
 
 
-def _append_round_results(results, round_result):
+def _append_round_results(results, round_result, completed_rounds, total_rounds, start_time):
     results.add_record(
         round_result["round"],
         round_result["confusion_matrix"],
         round_result["metrics"],
         round_result["learning_curve"],
     )
-    print(f"[Rodada {round_result['round']}] concluida")
+
+    elapsed_seconds = time.perf_counter() - start_time
+    average_seconds_per_round = elapsed_seconds / completed_rounds
+    remaining_rounds = total_rounds - completed_rounds
+    estimated_remaining_seconds = average_seconds_per_round * remaining_rounds
+
+    print(
+        f"[Rodada {round_result['round']}/{total_rounds}] concluida | "
+        f"decorrido: {format_duration(elapsed_seconds)} | "
+        f"restante estimado: {format_duration(estimated_remaining_seconds)}"
+    )
 
 
 def run_monte_carlo_validation(
@@ -126,6 +149,8 @@ def run_monte_carlo_validation(
     max_workers,
 ):
     results = MonteCarloResults(metric_keys)
+    start_time = time.perf_counter()
+    completed_rounds = 0
     round_args = [
         (round_index, matrix, max_epochs, learning_rate)
         for round_index in range(1, rounds + 1)
@@ -141,14 +166,19 @@ def run_monte_carlo_validation(
             with ProcessPoolExecutor(max_workers=worker_count) as executor:
                 round_results = executor.map(_run_single_round, round_args)
                 for round_result in round_results:
-                    _append_round_results(results, round_result)
+                    completed_rounds += 1
+                    _append_round_results(results, round_result, completed_rounds, rounds, start_time)
         except (OSError, PermissionError):
             for round_args_item in round_args:
                 round_result = _run_single_round(round_args_item)
-                _append_round_results(results, round_result)
+                completed_rounds += 1
+                _append_round_results(results, round_result, completed_rounds, rounds, start_time)
     else:
         for round_args_item in round_args:
             round_result = _run_single_round(round_args_item)
-            _append_round_results(results, round_result)
+            completed_rounds += 1
+            _append_round_results(results, round_result, completed_rounds, rounds, start_time)
+
+    print(f"Monte Carlo finalizado em {format_duration(time.perf_counter() - start_time)}")
 
     return results
