@@ -1,23 +1,6 @@
 import numpy as np
 
 
-METRIC_KEYS = ("accuracy", "sensitivity", "specificity", "precision", "f1_score")
-METRIC_LABELS = {
-    "accuracy": "Acuracia",
-    "sensitivity": "Sensibilidade",
-    "specificity": "Especificidade",
-    "precision": "Precisao",
-    "f1_score": "F1-score",
-}
-METRIC_FILE_LABELS = {
-    "accuracy": "acuracia",
-    "sensitivity": "sensibilidade",
-    "specificity": "especificidade",
-    "precision": "precisao",
-    "f1_score": "f1_score",
-}
-
-
 def calculate_validation_metrics(confusion_matrix):
     true_positives = confusion_matrix[0][0]
     true_negatives = confusion_matrix[1][1]

@@ -7,30 +7,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from dados import create_train_test_split, load_spiral_matrix, normalize_train_test
-from metricas import METRIC_FILE_LABELS, METRIC_KEYS, METRIC_LABELS
 from modelos.perceptron import SimplePerceptron
 from monte_carlo import run_monte_carlo_validation
 
 
-DATA_FILE = "spiral_d.csv"
-OUTPUT_DIR = Path("resultados/perceptron")
-MODEL_LABEL = "Perceptron Simples"
-
-PERCEPTRON_MAX_EPOCHS = 10000
-PERCEPTRON_LEARNING_RATE = 1e-2
-
-MONTE_CARLO_ROUNDS = 500
-
-RUN_TRAINING_EXAMPLE = True
-RUN_MONTE_CARLO = False
-RUN_SUMMARY_TABLES = True
-RUN_METRIC_BOXPLOTS = True
-RUN_BEST_WORST_ARTIFACTS = True
-CASE_LABELS = {"best": "melhor", "worst": "pior"}
-
-
-def load_spiral_data(file_name=DATA_FILE):
-    return load_spiral_matrix(file_name)
+def load_spiral_data(file_path):
+    return load_spiral_matrix(file_path)
 
 
 def create_normalized_train_test_split(matrix):
@@ -73,24 +55,24 @@ def plot_linear_decision_boundary(ax, W, x1_values, label, color):
     ax.legend()
 
 
-def train_perceptron(train_matrix):
+def train_perceptron(train_matrix, max_epochs, learning_rate):
     initial_W = np.random.uniform(0, 1, train_matrix.shape[1] - 1)
     model = SimplePerceptron(
         train_matrix[:, :3],
         initial_W,
         train_matrix[:, -1],
-        PERCEPTRON_MAX_EPOCHS,
-        PERCEPTRON_LEARNING_RATE,
+        max_epochs,
+        learning_rate,
     )
     model.fit()
     return model
 
 
-def save_training_example(matrix, output_dir):
+def save_training_example(matrix, output_dir, max_epochs, learning_rate):
     train_matrix, test_matrix = create_normalized_train_test_split(matrix)
     normalized_matrix = np.vstack((train_matrix, test_matrix))[:, 1:]
 
-    perceptron = train_perceptron(train_matrix)
+    perceptron = train_perceptron(train_matrix, max_epochs, learning_rate)
 
     figure = plt.figure(figsize=(8, 6))
     ax = figure.add_subplot()
@@ -112,14 +94,14 @@ def save_training_example(matrix, output_dir):
     save_figure(figure, output_dir / "01_dados_normalizados_fronteira.png")
 
 
-def print_validation_results(results):
-    for metric_key in METRIC_KEYS:
-        print(f"\n\n------- {METRIC_LABELS[metric_key].upper()} -------")
+def print_validation_results(results, model_label, metric_specs):
+    for metric_key, metric_label, _ in metric_specs:
+        print(f"\n\n------- {metric_label.upper()} -------")
         print(f"{'Modelo':<28} {'Media':>10} {'Desvio':>10} {'Maior':>10} {'Menor':>10}")
 
         summary = results.summary(metric_key)
         print(
-            f"{MODEL_LABEL:<28} "
+            f"{model_label:<28} "
             f"{summary['mean']:>10.4f} "
             f"{summary['std']:>10.4f} "
             f"{summary['max']:>10.4f} "
@@ -127,16 +109,15 @@ def print_validation_results(results):
         )
 
 
-def write_summary_tables(results, output_dir):
-    for metric_key in METRIC_KEYS:
-        metric_file_label = METRIC_FILE_LABELS[metric_key]
+def write_summary_tables(results, output_dir, model_label, metric_specs):
+    for metric_key, _, metric_file_label in metric_specs:
         table_path = output_dir / f"tabela_{metric_file_label}.csv"
 
         with table_path.open("w", encoding="utf-8") as file:
             file.write("Modelo,Media,Desvio-Padrao,Maior Valor,Menor Valor\n")
             summary = results.summary(metric_key)
             file.write(
-                f"{MODEL_LABEL},"
+                f"{model_label},"
                 f"{summary['mean']:.6f},"
                 f"{summary['std']:.6f},"
                 f"{summary['max']:.6f},"
@@ -144,36 +125,34 @@ def write_summary_tables(results, output_dir):
             )
 
 
-def save_metric_boxplots(results, output_dir):
-    for metric_key in METRIC_KEYS:
-        metric_file_label = METRIC_FILE_LABELS[metric_key]
+def save_metric_boxplots(results, output_dir, model_label, metric_specs):
+    for metric_key, metric_label, metric_file_label in metric_specs:
 
         figure, ax = plt.subplots(figsize=(8, 5))
         values = [results.metrics[metric_key]]
-        labels = [MODEL_LABEL]
+        labels = [model_label]
 
         ax.boxplot(values, labels=labels)
-        ax.set_title(f"Distribuicao - {METRIC_LABELS[metric_key]}")
-        ax.set_ylabel(METRIC_LABELS[metric_key])
+        ax.set_title(f"Distribuicao - {metric_label}")
+        ax.set_ylabel(metric_label)
         ax.grid(axis="y", alpha=0.3)
         figure.autofmt_xdate(rotation=15)
 
         save_figure(figure, output_dir / f"grafico_caixa_{metric_file_label}.png")
 
 
-def save_best_worst_artifacts(results, output_dir):
+def save_best_worst_artifacts(results, output_dir, model_label, metric_specs, case_labels):
     artifacts_dir = output_dir / "melhores_piores"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    for metric_key in METRIC_KEYS:
-        metric_file_label = METRIC_FILE_LABELS[metric_key]
+    for metric_key, metric_label, metric_file_label in metric_specs:
         cases = results.best_worst_cases(metric_key)
 
         for case_name, record in cases.items():
-            case_label = CASE_LABELS[case_name]
+            case_label = case_labels[case_name]
             prefix = f"perceptron_{metric_file_label}_{case_label}_rodada_{record['round']}"
             metric_value = record["metrics"][metric_key]
-            title = f"{MODEL_LABEL} - {case_label} {METRIC_LABELS[metric_key]} = {metric_value:.4f}"
+            title = f"{model_label} - {case_label} {metric_label} = {metric_value:.4f}"
 
             save_confusion_matrix(
                 record["confusion_matrix"],
@@ -224,31 +203,61 @@ def save_figure(figure, path):
 
 
 def main():
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    matrix = load_spiral_data()
+    project_dir = Path(__file__).resolve().parent
+    data_file = project_dir / "spiral_d.csv"
+    output_dir = project_dir / "resultados/perceptron"
+    model_label = "Perceptron Simples"
 
-    if RUN_TRAINING_EXAMPLE:
-        save_training_example(matrix, OUTPUT_DIR)
+    max_epochs = 10000
+    learning_rate = 1e-2
+    monte_carlo_rounds = 500
+    run_parallel = True
+    max_workers = None
 
-    if RUN_MONTE_CARLO:
+    run_training_example = True
+    run_monte_carlo = False
+    run_summary_tables = True
+    run_metric_boxplots = True
+    run_best_worst_artifacts = True
+
+    case_labels = {"best": "melhor", "worst": "pior"}
+    metric_specs = (
+        ("accuracy", "Acuracia", "acuracia"),
+        ("sensitivity", "Sensibilidade", "sensibilidade"),
+        ("specificity", "Especificidade", "especificidade"),
+        ("precision", "Precisao", "precisao"),
+        ("f1_score", "F1-score", "f1_score"),
+    )
+    metric_keys = tuple(metric_key for metric_key, _, _ in metric_specs)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    matrix = load_spiral_data(data_file)
+
+    if run_training_example:
+        save_training_example(matrix, output_dir, max_epochs, learning_rate)
+
+    if run_monte_carlo:
         results = run_monte_carlo_validation(
             matrix,
-            rounds=MONTE_CARLO_ROUNDS,
-            max_epochs=PERCEPTRON_MAX_EPOCHS,
-            learning_rate=PERCEPTRON_LEARNING_RATE,
+            metric_keys,
+            monte_carlo_rounds,
+            max_epochs,
+            learning_rate,
+            run_parallel,
+            max_workers,
         )
-        print_validation_results(results)
+        print_validation_results(results, model_label, metric_specs)
 
-        if RUN_SUMMARY_TABLES:
-            write_summary_tables(results, OUTPUT_DIR)
+        if run_summary_tables:
+            write_summary_tables(results, output_dir, model_label, metric_specs)
 
-        if RUN_METRIC_BOXPLOTS:
-            save_metric_boxplots(results, OUTPUT_DIR)
+        if run_metric_boxplots:
+            save_metric_boxplots(results, output_dir, model_label, metric_specs)
 
-        if RUN_BEST_WORST_ARTIFACTS:
-            save_best_worst_artifacts(results, OUTPUT_DIR)
+        if run_best_worst_artifacts:
+            save_best_worst_artifacts(results, output_dir, model_label, metric_specs, case_labels)
 
-    print(f"\nArtefatos salvos em: {OUTPUT_DIR.resolve()}")
+    print(f"\nArtefatos salvos em: {output_dir.resolve()}")
 
 
 if __name__ == "__main__":

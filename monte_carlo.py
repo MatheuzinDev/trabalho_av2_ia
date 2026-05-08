@@ -4,13 +4,14 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 
 from dados import create_train_test_split, normalize_train_test
-from metricas import METRIC_KEYS, calculate_validation_metrics, summarize_metric_values
+from metricas import calculate_validation_metrics, summarize_metric_values
 from modelos.perceptron import SimplePerceptron
 
 
 class MonteCarloResults:
-    def __init__(self):
-        self.metrics = {metric_key: [] for metric_key in METRIC_KEYS}
+    def __init__(self, metric_keys):
+        self.metric_keys = tuple(metric_keys)
+        self.metrics = {metric_key: [] for metric_key in self.metric_keys}
         self.records = []
 
     def add_record(self, round_index, confusion_matrix, metric_values, learning_curve):
@@ -22,7 +23,7 @@ class MonteCarloResults:
         }
         self.records.append(record)
 
-        for metric_key in METRIC_KEYS:
+        for metric_key in self.metric_keys:
             self.metrics[metric_key].append(metric_values[metric_key])
 
     def summary(self, metric_key):
@@ -117,13 +118,14 @@ def _append_round_results(results, round_result):
 
 def run_monte_carlo_validation(
     matrix,
-    rounds=500,
-    max_epochs=10000,
-    learning_rate=0.01,
-    parallel=True,
-    max_workers=None,
+    metric_keys,
+    rounds,
+    max_epochs,
+    learning_rate,
+    parallel,
+    max_workers,
 ):
-    results = MonteCarloResults()
+    results = MonteCarloResults(metric_keys)
     round_args = [
         (round_index, matrix, max_epochs, learning_rate)
         for round_index in range(1, rounds + 1)
