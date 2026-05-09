@@ -408,18 +408,18 @@ def main():
     mlp_learning_rate = 1e-2
     mlp_precision = 1e-8
     mlp_topology_study = {
-        "subdimensionado": (1,),
+        "subdimensionado": (2,),
         "referencia": mlp_topology,
-        "superdimensionado": (50, 50),
+        "superdimensionado": (100, 100),
     }
     monte_carlo_rounds = 500
     run_parallel = True
     max_workers = None
 
-    run_training_example = True
+    run_training_example = False
     run_mlp_training_example = True
     run_mlp_topology_study = True
-    run_monte_carlo = True
+    run_monte_carlo = False
     include_mlp_in_monte_carlo = True
     run_summary_tables = True
     run_best_worst_artifacts = True
