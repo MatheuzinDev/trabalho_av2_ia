@@ -505,9 +505,6 @@ def main():
         if run_best_worst_artifacts:
             save_best_worst_artifacts(results, comparison_output_dir, model_specs, metric_specs, case_labels)
 
-    print(f"\nFronteiras dos modelos gravadas em: {boundary_output_dir.resolve()}")
-    print(f"Comparacao Monte Carlo gravada em: {comparison_output_dir.resolve()}")
-
 
 if __name__ == "__main__":
     main()

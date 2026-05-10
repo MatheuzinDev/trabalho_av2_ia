@@ -6,8 +6,6 @@ class Adaline:
         self.training_matrix = training_matrix
         self.W = None
         self.learning_curve = []
-        self.progress_prefix = ""
-        self.halfway_epoch = 0
 
     def _bipolar_step_activation(self, value):
         if value >= 0:
@@ -26,7 +24,6 @@ class Adaline:
         input_matrix = np.hstack((bias_column, input_matrix))
 
         weights = np.random.uniform(0, 1, self.training_matrix.shape[1])
-        self.halfway_epoch = max_epochs // 2
 
         epochs = 0
         precision_reached = False
@@ -54,9 +51,6 @@ class Adaline:
                 input_matrix,
             )
             self.learning_curve.append(current_mse)
-
-            if self.halfway_epoch > 0 and epochs == self.halfway_epoch:
-                print(f"{self.progress_prefix}[Adaline] epoca {epochs} | eqm={current_mse:.8f}")
 
             if abs(current_mse - previous_mse) <= precision:
                 precision_reached = True
